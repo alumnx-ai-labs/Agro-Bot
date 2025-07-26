@@ -33,7 +33,7 @@ class STTAgent:
         
         logger.info("STTAgent initialized with Gemini")
     
-    def transcribe_audio(self, audio_data: str, language: str = 'english') -> Dict[str, Any]:
+    def transcribe_audio(self, audio_data: str, language: str = 'english', farm_settings: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Transcribe audio data to text using Gemini 2.5 Flash
         
@@ -46,9 +46,16 @@ class STTAgent:
         """
         
         try:
+            # Check farm settings for preferred language
+            transcription_language = language
+            if farm_settings:
+                preferred_languages = farm_settings.get('preferredLanguages', [])
+                if preferred_languages:
+                    transcription_language = preferred_languages[0].lower()
+
             # Get language name for prompt
-            language_name = self.language_names.get(language.lower(), 'English')
-            logger.info(f"Transcribing audio in language: {language_name}")
+            language_name = self.language_names.get(transcription_language.lower(), 'English')
+            logger.info(f"Transcribing audio in preferred language: {language_name}")
             
             # Create transcription prompt
             prompt = f"""

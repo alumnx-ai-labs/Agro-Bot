@@ -69,7 +69,7 @@ class TranslatorAgent:
         
         logger.info("TranslatorAgent initialized successfully")
     
-    def translate(self, translate_from: str, translate_to: str, text_to_translate: str) -> Dict[str, Any]:
+    def translate(self, translate_from: str, translate_to: str, text_to_translate: str, farm_settings: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Translate text from one language to another
         
@@ -81,7 +81,15 @@ class TranslatorAgent:
         Returns:
             Dict containing translation result and metadata
         """
-        
+        # Check farm settings for preferred language override
+        if farm_settings:
+            preferred_languages = farm_settings.get('preferredLanguages', [])
+            if preferred_languages:
+                # Use first preferred language as target if not English
+                preferred_lang = preferred_languages[0].lower()
+                if preferred_lang not in ['english', 'en']:
+                    translate_to = preferred_lang
+                    logger.info(f"Using preferred language from farm settings: {preferred_lang}")
         try:
             # Validate inputs
             if not text_to_translate or not text_to_translate.strip():
@@ -217,8 +225,7 @@ class TranslatorAgent:
         {{
             "success": true,
             "translated_text": "your translation here",
-            "confidence": 0.95,
-            "notes": "any important translation notes (optional)"
+            "confidence": 0.95
         }}
         
         If translation is not possible, respond with:

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class DiseaseDetectionAgent:
     """
-    Specialized agent for crop disease detection and treatment advice
+    Specialized agent for crop disease detection
     """
     
     def __init__(self):
@@ -17,7 +17,7 @@ class DiseaseDetectionAgent:
         logger.info("DiseaseDetectionAgent initialized")
     
     def analyze(self, input_data: Dict[str, Any], entities: Dict[str, Any], farm_settings: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Analyze crop disease from image and/or text description"""
+        """Analyze crop disease from image"""
         
         # Check if we have an image to analyze
         if not input_data.get('image_data'):
@@ -48,21 +48,17 @@ class DiseaseDetectionAgent:
                 if attempt == max_retries - 1:
                     logger.error(f"Final response after {max_retries} attempts: {analysis_result}")
                         
-                        # Try to parse structured response
+            # Try to parse structured response
             try:
                 # Clean JSON response (remove markdown wrappers)
                 cleaned_response = self.clean_json_response(analysis_result)
                 structured_response = json.loads(cleaned_response)
                 
-                # Validate and enhance response
-                enhanced_response = self.enhance_response(structured_response)
-                
                 return {
                     'type': 'disease_analysis',
-                    'analysis': enhanced_response,
+                    'analysis': structured_response,
                     'raw_response': analysis_result,
-                    'agent': 'disease_detection',
-                    'confidence': enhanced_response.get('confidence', 'medium')
+                    'agent': 'disease_detection'
                 }
                 
             except json.JSONDecodeError:
@@ -76,8 +72,7 @@ class DiseaseDetectionAgent:
                     'analysis': fallback_response,
                     'raw_response': analysis_result,
                     'agent': 'disease_detection',
-                    'confidence': 'low',
-                    'note': 'Structured analysis not available, showing general advice'
+                    'note': 'Structured analysis not available, showing fallback response'
                 }
                 
         except Exception as e:
@@ -97,129 +92,54 @@ class DiseaseDetectionAgent:
         location = entities.get('location', 'India')
         crop_type = entities.get('crop_mentioned', farm_settings.get('cropType', 'crop') if farm_settings else 'crop')
 
-        # Build farm context
-        farm_context = ""
-        if farm_settings:
-            farm_context = f"""
-        FARMER'S CONTEXT:
-        - Farmer: {farm_settings.get('farmerName', 'Not provided')}
-        - Crop: {farm_settings.get('cropType', 'Not specified')}
-        - Current Stage: {farm_settings.get('currentStage', 'Not specified')}
-        - Farm Size: {farm_settings.get('acreage', 'Not specified')} acres
-        - Soil Type: {farm_settings.get('soilType', 'Not specified')}
-        - Current Challenges: {farm_settings.get('currentChallenges', 'None mentioned')}
-        """
-
         prompt = f"""
-        You are Dr. AgriExpert, a leading plant pathologist specializing in Indian agriculture.
-
-        TASK: Analyze this {crop_type} image for diseases, pests, or health issues.
-
-        {farm_context}
+        You are a plant pathologist AI. Analyze this {crop_type} image for diseases only.
 
         CONTEXT:
         - Location: {location}
-        - Additional description: {text_description}
+        - Description: {text_description}
         
         RESPONSE FORMAT (JSON only):
         {{
-            "disease_name": "Specific disease/pest name or 'Healthy plant' if no issues",
-            "confidence": "high/medium/low",
-            "severity": "mild/moderate/severe/none",
-            "affected_parts": ["leaves", "stem", "fruit"],
-            "symptoms_observed": [
-                "Yellow spots on leaves",
-                "Brown patches on stem"
-            ],
-            "immediate_action": "Most urgent action farmer should take right now",
-            "treatment_summary": "Brief treatment in simple terms",
-            "organic_solutions": [
+            "has_disease": true/false,
+            "primary_disease": {{
+                "name": "Disease name or null if healthy",
+                "confidence": 0.85
+            }},
+            "possible_diseases": [
                 {{
-                    "name": "Neem oil spray",
-                    "preparation": "5ml neem oil + 1L water",
-                    "application": "Spray in evening every 3 days"
+                    "name": "Disease name 1",
+                    "confidence": 0.85
+                }},
+                {{
+                    "name": "Disease name 2", 
+                    "confidence": 0.65
                 }}
-            ],
-            "prevention_tips": [
-                "Ensure proper drainage",
-                "Regular plant inspection"
-            ],
-            "cost_estimate": "₹50-100 for treatment",
-            "warning_signs": "When to seek urgent help",
-            "success_timeline": "Expected improvement timeframe"
+            ]
         }}
         
-        IMPORTANT RULES:
-        1. Use simple Hindi/English terms farmers understand
-        2. Focus on locally available, affordable solutions
-        3. Be specific about quantities and timing
-        4. If plant looks healthy, say so clearly
-        5. Always provide actionable advice
-        6. Consider Indian climate and farming practices
+        RULES:
+        1. If no disease detected, set has_disease to false and primary_disease.name to null
+        2. If confident (>90%), return only primary_disease
+        3. If uncertain, return up to 5 possible diseases sorted by confidence
+        4. Use precise disease names in English only
         
-        CRITICAL: Return ONLY the JSON object. Do not wrap in ```json or ``` blocks. Start directly with {{ and end with }}.
+        CRITICAL: Return ONLY the JSON object. No markdown blocks.
         """
         
         return prompt
-    
-
-    def enhance_response(self, response: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhance and validate the structured response"""
-        
-        # Ensure all required fields exist
-        enhanced = {
-            'disease_name': response.get('disease_name', 'Unknown condition'),
-            'confidence': response.get('confidence', 'medium'),
-            'severity': response.get('severity', 'unknown'),
-            'affected_parts': response.get('affected_parts', []),
-            'symptoms_observed': response.get('symptoms_observed', []),
-            'immediate_action': response.get('immediate_action', 'Monitor plant closely'),
-            'treatment_summary': response.get('treatment_summary', 'Consult local agricultural expert'),
-            'organic_solutions': response.get('organic_solutions', []),
-            'prevention_tips': response.get('prevention_tips', []),
-            'cost_estimate': response.get('cost_estimate', 'Cost varies'),
-            'warning_signs': response.get('warning_signs', 'Rapid spread to other plants'),
-            'success_timeline': response.get('success_timeline', '1-2 weeks with proper treatment')
-        }
-        
-        # Add helpful defaults if lists are empty
-        if not enhanced['organic_solutions']:
-            enhanced['organic_solutions'] = [{
-                'name': 'General care',
-                'preparation': 'Maintain proper watering and sunlight',
-                'application': 'Daily monitoring'
-            }]
-        
-        if not enhanced['prevention_tips']:
-            enhanced['prevention_tips'] = [
-                'Regular inspection of plants',
-                'Proper spacing between plants',
-                'Good drainage management'
-            ]
-        
-        return enhanced
     
     def create_fallback_response(self, raw_text: str) -> Dict[str, Any]:
         """Create a basic structured response from plain text"""
         
         return {
-            'disease_name': 'Analysis available in description',
-            'confidence': 'low',
-            'severity': 'unknown',
-            'affected_parts': [],
-            'symptoms_observed': ['See detailed analysis below'],
-            'immediate_action': 'Review the detailed analysis',
-            'treatment_summary': raw_text[:200] + '...' if len(raw_text) > 200 else raw_text,
-            'organic_solutions': [{
-                'name': 'General advice',
-                'preparation': 'Follow detailed analysis',
-                'application': 'As described'
-            }],
-            'prevention_tips': ['Regular plant monitoring', 'Good agricultural practices'],
-            'cost_estimate': 'Varies based on treatment needed',
-            'warning_signs': 'Rapid deterioration of plant health',
-            'success_timeline': 'Depends on treatment approach',
-            'detailed_text': raw_text
+            'has_disease': True,
+            'primary_disease': {
+                'name': 'Analysis available in raw text',
+                'confidence': 0.5
+            },
+            'possible_diseases': [],
+            'raw_analysis': raw_text[:500] + '...' if len(raw_text) > 500 else raw_text
         }
     
     def clean_json_response(self, response: str) -> str:

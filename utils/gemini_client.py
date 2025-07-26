@@ -136,7 +136,7 @@ class GeminiClient:
                         [prompt, audio_part],
                         safety_settings=self.safety_config,
                         generation_config={
-                            "max_output_tokens": 1024,
+                            "max_output_tokens": 4096,
                             "temperature": 0.1,  # Lower for more accurate transcription
                             "top_p": 0.8,
                         }

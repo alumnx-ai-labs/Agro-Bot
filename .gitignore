@@ -34,6 +34,5 @@ EOF
 google-cloud-sdk
 google-cloud-sdk-471.0.0-darwin-arm.tar.gz
 
-disease_analysis_agent.py
 d_d.py
 manager(Copy).py
